@@ -1,16 +1,16 @@
 export const CONFIG = {
   avatar: {
-    glbUrl: '', // Option 1: GLB from MetaPerson/avaturn — set local path like 'assets/avatar.glb'
-    // Option 2: Use photos as textures on the fallback character (set to empty to use)
-    usePhotoTexture: true,
+    glbUrl: '', // Set a GLB URL for a realistic avatar. Free options:
+               //   - https://sketchfab.com/3d-models/... (download and place in assets/)
+               //   - https://avaturn.me/ (export as GLB)
+               //   - Search "free male character glb" on Sketchfab
+    usePhotoTexture: true, // Falls back to photo-textured character if no GLB
     faceImage: 'images/front-img.webp',
     coatImage: 'images/coat-img.webp',
     fallbackColor: 0x8b5cf6,
   },
   scene: {
-    backgroundColor: 0x0a0f1a,
-    particleCount: 3000,
-    gridSize: 100,
+    backgroundColor: 0x89c4e1,
   },
   panels: {
     about: {

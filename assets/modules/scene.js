@@ -1,7 +1,4 @@
 import * as THREE from 'three';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { CONFIG } from '../config.js';
 
 export class SceneManager {
@@ -12,23 +9,21 @@ export class SceneManager {
     this.renderer = null;
     this.camera = null;
     this.composer = null;
-    this.bloomPass = null;
     this.particles = null;
-    this.grid = null;
     this.floor = null;
     this.clock = new THREE.Clock();
     this.time = 0;
+    this.trees = [];
   }
 
   init() {
     this.setupRenderer();
     this.setupCamera();
-    this.setupScene();
+    this.setupSky();
     this.setupLights();
-    this.setupFloor();
-    this.setupWalls();
+    this.setupGround();
+    this.setupTrees();
     this.setupParticles();
-    this.setupPostProcessing();
     this.setupResize();
   }
 
@@ -36,178 +31,191 @@ export class SceneManager {
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
       antialias: this.perfSettings.antialias,
-      alpha: true,
+      alpha: false,
       powerPreference: 'high-performance',
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.toneMappingExposure = 1.2;
     this.renderer.shadowMap.enabled = this.perfSettings.shadows;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
   }
 
   setupCamera() {
-    this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
-    this.camera.position.set(0, 3, 15);
+    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
+    this.camera.position.set(8, 5, 14);
     this.camera.lookAt(0, 1.5, 0);
   }
 
-  setupScene() {
-    this.scene.background = new THREE.Color(CONFIG.scene.backgroundColor);
-    this.scene.fog = new THREE.FogExp2(CONFIG.scene.backgroundColor, 0.015);
+  setupSky() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 2;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createLinearGradient(0, 0, 0, 512);
+    grad.addColorStop(0, '#1a2a6c');
+    grad.addColorStop(0.4, '#4a6fa5');
+    grad.addColorStop(0.7, '#89c4e1');
+    grad.addColorStop(0.85, '#b8d8e8');
+    grad.addColorStop(1, '#d4e4e8');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 2, 512);
+    const texture = new THREE.CanvasTexture(canvas);
+    this.scene.background = texture;
+    this.scene.fog = new THREE.FogExp2(0x89c4e1, 0.008);
   }
 
   setupLights() {
-    const ambient = new THREE.AmbientLight(0x404060, 0.6);
+    const ambient = new THREE.AmbientLight(0x8899bb, 0.5);
     this.scene.add(ambient);
 
-    const mainLight = new THREE.DirectionalLight(0x00f5d4, 1.5);
-    mainLight.position.set(10, 20, 10);
-    mainLight.castShadow = this.perfSettings.shadows;
+    const hemi = new THREE.HemisphereLight(0x87ceeb, 0x362907, 0.8);
+    this.scene.add(hemi);
+
+    const sun = new THREE.DirectionalLight(0xffeedd, 1.8);
+    sun.position.set(30, 25, 10);
+    sun.castShadow = this.perfSettings.shadows;
     if (this.perfSettings.shadows) {
-      mainLight.shadow.mapSize.width = 2048;
-      mainLight.shadow.mapSize.height = 2048;
-      mainLight.shadow.camera.near = 0.5;
-      mainLight.shadow.camera.far = 50;
-      mainLight.shadow.camera.left = -20;
-      mainLight.shadow.camera.right = 20;
-      mainLight.shadow.camera.top = 20;
-      mainLight.shadow.camera.bottom = -20;
-      mainLight.shadow.bias = -0.001;
+      sun.shadow.mapSize.width = 2048;
+      sun.shadow.mapSize.height = 2048;
+      sun.shadow.camera.near = 0.5;
+      sun.shadow.camera.far = 60;
+      sun.shadow.camera.left = -25;
+      sun.shadow.camera.right = 25;
+      sun.shadow.camera.top = 25;
+      sun.shadow.camera.bottom = -25;
+      sun.shadow.bias = -0.001;
     }
-    this.scene.add(mainLight);
+    this.scene.add(sun);
 
-    const accentLight1 = new THREE.PointLight(0x8b5cf6, 2, 30);
-    accentLight1.position.set(-12, 5, -12);
-    this.scene.add(accentLight1);
-
-    const accentLight2 = new THREE.PointLight(0xf472b6, 2, 30);
-    accentLight2.position.set(12, 5, -12);
-    this.scene.add(accentLight2);
-
-    const accentLight3 = new THREE.PointLight(0xfbbf24, 2, 30);
-    accentLight3.position.set(0, 5, 15);
-    this.scene.add(accentLight3);
-
-    this.lights = { main: mainLight, accents: [accentLight1, accentLight2, accentLight3] };
+    const fill = new THREE.DirectionalLight(0x8888ff, 0.3);
+    fill.position.set(-20, 10, -20);
+    this.scene.add(fill);
   }
 
-  setupFloor() {
-    const floorGeo = new THREE.PlaneGeometry(80, 80, 80, 80);
-    const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x0d1220,
-      metalness: 0.1,
-      roughness: 0.8,
+  setupGround() {
+    const groundGeo = new THREE.CircleGeometry(35, 64);
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0x5a8a4a,
+      roughness: 0.9,
+      metalness: 0.0,
       side: THREE.DoubleSide,
     });
-    this.floor = new THREE.Mesh(floorGeo, floorMat);
+    this.floor = new THREE.Mesh(groundGeo, groundMat);
     this.floor.name = 'floor';
     this.floor.rotation.x = -Math.PI / 2;
+    this.floor.position.y = 0;
     this.floor.receiveShadow = this.perfSettings.shadows;
     this.scene.add(this.floor);
 
-    const gridLines = new THREE.GridHelper(80, 80, 0x00f5d4, 0x0a1525);
-    gridLines.position.y = 0.02;
-    gridLines.material.transparent = true;
-    gridLines.material.opacity = 0.15;
-    this.grid = gridLines;
-    this.scene.add(gridLines);
-  }
-
-  setupWalls() {
-    const wallMat = new THREE.MeshStandardMaterial({
-      color: 0x0f1525,
-      metalness: 0.2,
-      roughness: 0.7,
+    // Edge ring to blend
+    const ring = new THREE.RingGeometry(33, 35, 64);
+    const ringMat = new THREE.MeshStandardMaterial({
+      color: 0x4a7a3a,
+      roughness: 1,
+      metalness: 0,
       side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.6,
     });
-
-    const backWall = new THREE.Mesh(new THREE.PlaneGeometry(80, 30), wallMat);
-    backWall.position.set(0, 15, -40);
-    backWall.receiveShadow = true;
-    this.scene.add(backWall);
-
-    const sideWall1 = new THREE.Mesh(new THREE.PlaneGeometry(80, 30), wallMat);
-    sideWall1.position.set(-40, 15, 0);
-    sideWall1.rotation.y = Math.PI / 2;
-    sideWall1.receiveShadow = true;
-    this.scene.add(sideWall1);
-
-    const sideWall2 = new THREE.Mesh(new THREE.PlaneGeometry(80, 30), wallMat);
-    sideWall2.position.set(40, 15, 0);
-    sideWall2.rotation.y = -Math.PI / 2;
-    sideWall2.receiveShadow = true;
-    this.scene.add(sideWall2);
-
-    this.addNeonLines();
+    const ringMesh = new THREE.Mesh(ring, ringMat);
+    ringMesh.rotation.x = -Math.PI / 2;
+    ringMesh.position.y = -0.01;
+    this.scene.add(ringMesh);
   }
 
-  addNeonLines() {
-    const neonGeo = new THREE.BoxGeometry(80, 0.1, 0.1);
-    const neonMat1 = new THREE.MeshBasicMaterial({ color: 0x00f5d4, transparent: true, opacity: 0.5 });
-    const neonMat2 = new THREE.MeshBasicMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0.5 });
-    const neonMat3 = new THREE.MeshBasicMaterial({ color: 0xf472b6, transparent: true, opacity: 0.5 });
+  createTree(x, z) {
+    const group = new THREE.Group();
 
-    const positions = [
-      { y: 0.5, z: -39.9, mat: neonMat1 },
-      { y: 5, z: -39.9, mat: neonMat2 },
-      { y: 10, z: -39.9, mat: neonMat3 },
-      { x: -39.9, y: 0.5, mat: neonMat1 },
-      { x: -39.9, y: 5, mat: neonMat2 },
-      { x: 39.9, y: 0.5, mat: neonMat3 },
-      { x: 39.9, y: 5, mat: neonMat1 },
-    ];
+    // Trunk
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8B5A2B, roughness: 0.9 });
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 1.5, 6), trunkMat);
+    trunk.position.y = 0.75;
+    trunk.castShadow = true;
+    group.add(trunk);
 
+    const leafMat = new THREE.MeshStandardMaterial({ color: 0x3a8a3a, roughness: 0.8 });
+
+    const crown1 = new THREE.Mesh(new THREE.SphereGeometry(0.8, 7, 7), leafMat);
+    crown1.position.y = 1.8;
+    crown1.castShadow = true;
+    group.add(crown1);
+
+    const crown2 = new THREE.Mesh(new THREE.SphereGeometry(0.6, 7, 7), leafMat);
+    crown2.position.set(0.4, 2.2, 0.3);
+    crown2.castShadow = true;
+    group.add(crown2);
+
+    const crown3 = new THREE.Mesh(new THREE.SphereGeometry(0.5, 7, 7), leafMat);
+    crown3.position.set(-0.3, 2.3, -0.2);
+    crown3.castShadow = true;
+    group.add(crown3);
+
+    group.position.set(x, 0, z);
+    group.scale.setScalar(0.8 + Math.random() * 0.4);
+    group.rotation.y = Math.random() * Math.PI * 2;
+
+    return group;
+  }
+
+  setupTrees() {
+    const positions = [];
+    for (let i = 0; i < 30; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 6 + Math.random() * 20;
+      const x = Math.cos(angle) * dist;
+      const z = Math.sin(angle) * dist;
+      if (Math.abs(x) < 5 && Math.abs(z) < 5) continue;
+      positions.push({ x, z });
+    }
     positions.forEach(p => {
-      const line = new THREE.Mesh(neonGeo, p.mat);
-      line.position.set(p.x || 0, p.y, p.z || 0);
-      if (p.x !== undefined) line.rotation.z = Math.PI / 2;
-      this.scene.add(line);
+      const tree = this.createTree(p.x, p.z);
+      this.scene.add(tree);
+      this.trees.push(tree);
     });
+
+    // Small rocks
+    const rockMat = new THREE.MeshStandardMaterial({ color: 0x7a7a7a, roughness: 0.9 });
+    for (let i = 0; i < 12; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 2 + Math.random() * 18;
+      const rock = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(0.1 + Math.random() * 0.15),
+        rockMat
+      );
+      rock.position.set(Math.cos(angle) * dist, 0.05, Math.sin(angle) * dist);
+      rock.rotation.set(Math.random(), Math.random(), Math.random());
+      rock.receiveShadow = true;
+      this.scene.add(rock);
+    }
   }
 
   setupParticles() {
     if (!this.perfSettings.particles) return;
-
-    const count = this.perfSettings.particles;
+    const count = Math.min(this.perfSettings.particles, 500);
     const geo = new THREE.BufferGeometry();
     const positions = new Float32Array(count * 3);
-    const colors = new Float32Array(count * 3);
     const sizes = new Float32Array(count);
-    const speeds = new Float32Array(count);
-    const phases = new Float32Array(count);
-
-    const colorPalette = [new THREE.Color(0x00f5d4), new THREE.Color(0x8b5cf6), new THREE.Color(0xf472b6), new THREE.Color(0xfbbf24)];
 
     for (let i = 0; i < count; i++) {
-      const i3 = i * 3;
-      positions[i3] = (Math.random() - 0.5) * 80;
-      positions[i3 + 1] = Math.random() * 30;
-      positions[i3 + 2] = (Math.random() - 0.5) * 80;
-
-      const c = colorPalette[Math.floor(Math.random() * colorPalette.length)];
-      colors[i3] = c.r;
-      colors[i3 + 1] = c.g;
-      colors[i3 + 2] = c.b;
-
-      sizes[i] = Math.random() * 0.3 + 0.1;
-      speeds[i] = Math.random() * 0.3 + 0.1;
-      phases[i] = Math.random() * Math.PI * 2;
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 3 + Math.random() * 25;
+      positions[i * 3] = Math.cos(angle) * dist;
+      positions[i * 3 + 1] = 1.5 + Math.random() * 8;
+      positions[i * 3 + 2] = Math.sin(angle) * dist;
+      sizes[i] = 0.04 + Math.random() * 0.08;
     }
 
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-    geo.setAttribute('speed', new THREE.BufferAttribute(speeds, 1));
-    geo.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
 
     const mat = new THREE.PointsMaterial({
-      size: 0.2,
-      vertexColors: true,
+      color: 0xffffff,
+      size: 0.06,
       transparent: true,
-      opacity: 0.7,
+      opacity: 0.3,
       sizeAttenuation: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
@@ -215,24 +223,6 @@ export class SceneManager {
 
     this.particles = new THREE.Points(geo, mat);
     this.scene.add(this.particles);
-  }
-
-  setupPostProcessing() {
-    this.composer = new EffectComposer(this.renderer);
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
-
-    if (this.perfSettings.bloom) {
-      this.bloomPass = new UnrealBloomPass(
-        new THREE.Vector2(window.innerWidth, window.innerHeight),
-        0.8,
-        0.4,
-        0.85
-      );
-      this.bloomPass.threshold = 0.3;
-      this.bloomPass.strength = 0.6;
-      this.bloomPass.radius = 0.5;
-      this.composer.addPass(this.bloomPass);
-    }
   }
 
   setupResize() {
@@ -243,46 +233,22 @@ export class SceneManager {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.composer.setSize(window.innerWidth, window.innerHeight);
   }
 
   update() {
     this.time = this.clock.getElapsedTime();
 
     if (this.particles) {
-      const positions = this.particles.geometry.attributes.position.array;
-      const speeds = this.particles.geometry.attributes.speed.array;
-      const phases = this.particles.geometry.attributes.phase.array;
-      const count = this.particles.geometry.attributes.position.count;
-
-      for (let i = 0; i < count; i++) {
-        const i3 = i * 3;
-        positions[i3 + 1] += speeds[i] * 0.008;
-        positions[i3] += Math.sin(this.time * speeds[i] + phases[i]) * 0.003;
-        positions[i3 + 2] += Math.cos(this.time * speeds[i] + phases[i]) * 0.003;
-
-        if (positions[i3 + 1] > 30) positions[i3 + 1] = 0;
-        if (positions[i3 + 1] < 0) positions[i3 + 1] = 30;
-      }
-      this.particles.geometry.attributes.position.needsUpdate = true;
-      this.particles.rotation.y += 0.0001;
+      this.particles.rotation.y += 0.0005;
     }
 
-    if (this.grid) {
-      this.grid.material.opacity = 0.15 + Math.sin(this.time * 0.5) * 0.05;
-    }
-
-    this.lights.accents.forEach((light, i) => {
-      light.intensity = 2 + Math.sin(this.time * 0.7 + i) * 0.5;
+    this.trees.forEach((tree, i) => {
+      tree.rotation.y += 0.0002 * (i % 2 === 0 ? 1 : -1);
     });
   }
 
   render() {
-    if (this.composer) {
-      this.composer.render();
-    } else {
-      this.renderer.render(this.scene, this.camera);
-    }
+    this.renderer.render(this.scene, this.camera);
   }
 
   setCameraPosition(pos, target) {
@@ -290,39 +256,17 @@ export class SceneManager {
     if (target) this.camera.lookAt(target);
   }
 
-  getCamera() {
-    return this.camera;
-  }
-
-  getScene() {
-    return this.scene;
-  }
-
-  getRenderer() {
-    return this.renderer;
-  }
-
-  setBloomEnabled(enabled) {
-    if (this.bloomPass) {
-      this.bloomPass.enabled = enabled;
-    }
-  }
-
-  setShadowsEnabled(enabled) {
-    this.renderer.shadowMap.enabled = enabled;
-    this.lights.main.castShadow = enabled;
-  }
+  getCamera() { return this.camera; }
+  getScene() { return this.scene; }
+  getRenderer() { return this.renderer; }
 
   dispose() {
     this.renderer.dispose();
     this.scene.traverse(obj => {
       if (obj.geometry) obj.geometry.dispose();
       if (obj.material) {
-        if (Array.isArray(obj.material)) {
-          obj.material.forEach(m => m.dispose());
-        } else {
-          obj.material.dispose();
-        }
+        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+        else obj.material.dispose();
       }
     });
   }

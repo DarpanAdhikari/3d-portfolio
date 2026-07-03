@@ -24,15 +24,13 @@ body {
   background: var(--bg);
   color: var(--white);
   overflow-x: hidden;
-  cursor: none;
+  cursor: default;
 }
+body:active { cursor: default; }
 
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
 
-#cur { position: fixed; width: 10px; height: 10px; background: var(--cyan); border-radius: 50%; pointer-events: none; z-index: 9999; transition: transform .15s, width .2s, height .2s, background .2s; mix-blend-mode: screen; }
-#cur-r { position: fixed; width: 38px; height: 38px; border: 1px solid var(--cyan); border-radius: 50%; pointer-events: none; z-index: 9998; opacity: .45; transition: all .1s linear; }
-body:has(a:hover) #cur, body:has(button:hover) #cur { width: 18px; height: 18px; background: var(--pink); transform: translate(-4px, -4px); }
-body:has(a:hover) #cur-r, body:has(button:hover) #cur-r { width: 52px; height: 52px; border-color: var(--pink); opacity: .25; }
+#cur, #cur-r { display: none; }
 
 #c3d { position: fixed; inset: 0; z-index: 0; display: block; }
 

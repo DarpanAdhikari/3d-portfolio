@@ -35,34 +35,21 @@ class Portfolio3D {
   async init() {
     try {
       this.showLoader();
-      console.log('1/13 showLoader');
       await this.detectPerformance();
-      console.log('2/13 detectPerformance');
       this.setupLabelRenderer();
-      console.log('3/13 setupLabelRenderer');
       await this.setupScene();
-      console.log('4/13 setupScene');
       await this.setupAvatar();
-      console.log('5/13 setupAvatar');
       this.setupPanels();
-      console.log('6/13 setupPanels');
       this.setupDialogue();
-      console.log('7/13 setupDialogue');
       this.setupCinematic();
-      console.log('8/13 setupCinematic');
       this.setupInteraction();
-      console.log('9/13 setupInteraction');
       this.setupUI();
-      console.log('10/13 setupUI');
       this.hideLoader();
-      console.log('11/13 hideLoader');
       this.startRenderLoop();
-      console.log('12/13 startRenderLoop');
       this.startWelcomeSequence();
-      console.log('13/13 done');
     } catch (e) {
-      console.error('[Init] FAILED at step:', e);
-      document.getElementById('loader').innerHTML = `<div class="loader-text" style="color:#f472b6">${e.message || e}</div>`;
+      console.error('[Init] Failed:', e);
+      document.getElementById('loader').innerHTML = `<div class="loader-text" style="color:#f472b6">${e.message}</div>`;
     }
   }
 

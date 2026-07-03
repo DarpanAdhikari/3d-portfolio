@@ -117,6 +117,10 @@ export class InteractionManager {
   onKeyDown(e) {
     this.keys[e.code] = true;
 
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) {
+      e.preventDefault();
+    }
+
     if (e.code === 'Escape') {
       if (this.isPointerLocked) {
         document.exitPointerLock();

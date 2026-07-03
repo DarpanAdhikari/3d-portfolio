@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CONFIG } from '../config.js';
-import { headModelBuilder } from './head_model.js';
 
 export class AvatarManager {
   constructor(scene, camera) {
@@ -17,7 +16,6 @@ export class AvatarManager {
     this.isMoving = false;
     this.moveSpeed = 3.0;
     this.headBone = null;
-    this.headMesh = null;
     this.lookAtTarget = null;
     this.idleActions = [];
     this.lastBlink = 0;
@@ -43,39 +41,42 @@ export class AvatarManager {
         this.scene.add(this.avatar);
         this.isLoaded = true;
         this.playIdle();
-        console.log('[Avatar] 3D avatar loaded from:', url);
+        console.log('[Avatar] GLB avatar loaded from:', url);
         return;
       } catch (err) {
-        console.warn('[Avatar] Failed to load avatar GLB, using photo-textured fallback:', err);
+        console.warn('[Avatar] GLB load failed, using fallback:', err);
       }
     }
 
     if (CONFIG.avatar.usePhotoTexture) {
-      await this.createPhotoTexturedFallback();
+      await this.createPhotoFallback();
     } else {
       this.createStylizedFallback();
     }
   }
 
-  async createPhotoTexturedFallback() {
+  async createPhotoFallback() {
     const group = new THREE.Group();
 
     let faceTex = null;
     try {
-      const loader = new THREE.TextureLoader();
-      faceTex = await loader.loadAsync(CONFIG.avatar.faceImage);
+      faceTex = await new THREE.TextureLoader().loadAsync(CONFIG.avatar.faceImage);
     } catch (e) {
-      console.warn('[Avatar] Failed to load face texture, using stylized:', e);
+      console.warn('[Avatar] Face texture failed, using stylized:', e);
       this.createStylizedFallback();
       return;
     }
 
-    headModelBuilder.build();
-    const head = headModelBuilder.createAnimatedHead(faceTex);
+    const headMat = new THREE.MeshStandardMaterial({
+      map: faceTex,
+      metalness: 0.05,
+      roughness: 0.7,
+    });
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 32, 32), headMat);
+    head.name = 'avatar-head';
     head.position.y = 1.5;
     head.castShadow = true;
     group.add(head);
-    this.headMesh = head;
 
     this.headBone = new THREE.Object3D();
     this.headBone.position.copy(head.position);
@@ -83,10 +84,9 @@ export class AvatarManager {
 
     let coatTex = null;
     try {
-      const loader = new THREE.TextureLoader();
-      coatTex = await loader.loadAsync(CONFIG.avatar.coatImage);
+      coatTex = await new THREE.TextureLoader().loadAsync(CONFIG.avatar.coatImage);
     } catch (e) {
-      console.warn('[Avatar] Failed to load coat texture');
+      console.warn('[Avatar] Coat texture failed');
     }
 
     const bodyMat = new THREE.MeshStandardMaterial({
@@ -95,18 +95,14 @@ export class AvatarManager {
       metalness: 0.2,
       roughness: 0.8,
     });
+
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.45, 1.1, 16), bodyMat);
     body.name = 'avatar-body';
     body.position.y = 0.55;
     body.castShadow = true;
     group.add(body);
 
-    const skinMat = new THREE.MeshStandardMaterial({
-      color: 0xffdbac,
-      metalness: 0.1,
-      roughness: 0.8,
-    });
-
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac, metalness: 0.1, roughness: 0.8 });
     const armGeo = new THREE.CapsuleGeometry(0.08, 0.6, 4, 8);
     const leftArm = new THREE.Mesh(armGeo, bodyMat);
     leftArm.name = 'avatar-left-arm';
@@ -137,12 +133,11 @@ export class AvatarManager {
     this.scene.add(this.avatar);
     this.isLoaded = true;
     this.startProceduralIdle();
-    console.log('[Avatar] Photo-textured avatar created with blendshape head');
+    console.log('[Avatar] Photo-textured avatar created');
   }
 
   createStylizedFallback() {
     const group = new THREE.Group();
-
     const bodyMat = new THREE.MeshStandardMaterial({
       color: CONFIG.avatar.fallbackColor,
       metalness: 0.2,
@@ -155,22 +150,22 @@ export class AvatarManager {
     body.castShadow = true;
     group.add(body);
 
-    headModelBuilder.build();
-    const head = headModelBuilder.createAnimatedHead();
+    const headMat = new THREE.MeshStandardMaterial({ color: 0xffdbac, metalness: 0.1, roughness: 0.8 });
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), headMat);
+    head.name = 'avatar-head';
     head.position.y = 1.45;
     head.castShadow = true;
     group.add(head);
-    this.headMesh = head;
 
     const eyeGeo = new THREE.SphereGeometry(0.04, 16, 16);
     const eyeMat = new THREE.MeshBasicMaterial({ color: 0x1a1f2e });
     const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
     leftEye.name = 'avatar-left-eye';
     leftEye.position.set(-0.08, 1.48, 0.25);
+    group.add(leftEye);
     const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
     rightEye.name = 'avatar-right-eye';
     rightEye.position.set(0.08, 1.48, 0.25);
-    group.add(leftEye);
     group.add(rightEye);
 
     this.headBone = new THREE.Object3D();
@@ -183,7 +178,6 @@ export class AvatarManager {
     leftArm.position.set(-0.5, 0.9, 0);
     leftArm.rotation.z = Math.PI / 6;
     group.add(leftArm);
-
     const rightArm = new THREE.Mesh(armGeo, bodyMat);
     rightArm.name = 'avatar-right-arm';
     rightArm.position.set(0.5, 0.9, 0);
@@ -195,7 +189,6 @@ export class AvatarManager {
     leftLeg.name = 'avatar-left-leg';
     leftLeg.position.set(-0.18, 0.4, 0);
     group.add(leftLeg);
-
     const rightLeg = new THREE.Mesh(legGeo, bodyMat);
     rightLeg.name = 'avatar-right-leg';
     rightLeg.position.set(0.18, 0.4, 0);
@@ -206,7 +199,7 @@ export class AvatarManager {
     this.scene.add(this.avatar);
     this.isLoaded = true;
     this.startProceduralIdle();
-    console.log('[Avatar] Stylized fallback avatar created with blendshape head');
+    console.log('[Avatar] Stylized avatar created');
   }
 
   findHeadBone() {
@@ -233,9 +226,7 @@ export class AvatarManager {
 
   playAnimation(name, loop = THREE.LoopRepeat, clampWhenFinished = false) {
     if (!this.mixer || !this.animations[name]) return;
-    if (this.currentAction) {
-      this.currentAction.fadeOut(0.3);
-    }
+    if (this.currentAction) this.currentAction.fadeOut(0.3);
     const action = this.animations[name];
     action.reset();
     action.setLoop(loop, clampWhenFinished ? 1 : Infinity);
@@ -260,14 +251,8 @@ export class AvatarManager {
     }
   }
 
-  startProceduralIdle() {
-    this.proceduralIdle = true;
-    this.idleTime = 0;
-  }
-
-  stopProceduralIdle() {
-    this.proceduralIdle = false;
-  }
+  startProceduralIdle() { this.proceduralIdle = true; this.idleTime = 0; }
+  stopProceduralIdle() { this.proceduralIdle = false; }
 
   wave() {
     if (this.animations.Wave) {
@@ -291,33 +276,21 @@ export class AvatarManager {
     this.targetPosition.copy(position);
     this.targetPosition.y = 0;
     this.isMoving = true;
-
     if (this.animations.Walk || this.animations.Run) {
       this.playAnimation(this.animations.Walk ? 'Walk' : 'Run');
     }
   }
 
-  proceduralWave() {
-    this.waveTime = 0;
-    this.waving = true;
-  }
-
-  proceduralPoint(target) {
-    this.pointTarget = target.clone();
-    this.pointing = true;
-    this.pointTime = 0;
-  }
+  proceduralWave() { this.waveTime = 0; this.waving = true; }
+  proceduralPoint(target) { this.pointTarget = target.clone(); this.pointing = true; this.pointTime = 0; }
 
   update(delta, time) {
-    if (this.mixer) {
-      this.mixer.update(delta);
-    }
+    if (this.mixer) this.mixer.update(delta);
 
     if (this.isMoving && this.avatar) {
       const direction = new THREE.Vector3().subVectors(this.targetPosition, this.avatar.position);
       direction.y = 0;
       const distance = direction.length();
-
       if (distance > 0.1) {
         direction.normalize();
         const moveStep = this.moveSpeed * delta;
@@ -340,13 +313,11 @@ export class AvatarManager {
 
     if (this.proceduralIdle) {
       this.idleTime += delta;
+      const body = this.avatar.getObjectByName('avatar-body');
       const head = this.avatar.getObjectByName('avatar-head');
+      if (body) body.position.y = 0.5 + Math.sin(this.idleTime * 1.5) * 0.02;
       if (head) head.position.y = 1.45 + Math.sin(this.idleTime * 1.5) * 0.02;
       this.avatar.rotation.y = Math.sin(this.idleTime * 0.3) * 0.1;
-
-      if (this.headMesh) {
-        headModelBuilder.setSmile(this.headMesh, Math.max(0, Math.sin(this.idleTime * 0.5)) * 0.15);
-      }
     }
 
     if (this.waving && this.waveTime !== undefined) {
@@ -356,10 +327,7 @@ export class AvatarManager {
         rightArm.rotation.z = -Math.PI / 6 + Math.sin(this.waveTime * 10) * 0.8;
         rightArm.rotation.x = Math.sin(this.waveTime * 5) * 0.3;
       }
-      if (this.waveTime > 2) {
-        this.waving = false;
-        this.waveTime = undefined;
-      }
+      if (this.waveTime > 2) { this.waving = false; this.waveTime = undefined; }
     }
 
     if (this.pointing && this.pointTarget) {
@@ -370,16 +338,12 @@ export class AvatarManager {
         rightArm.lookAt(dir);
         rightArm.rotation.z -= Math.PI / 2;
       }
-      if (this.pointTime > 2) {
-        this.pointing = false;
-        this.pointTarget = null;
-      }
+      if (this.pointTime > 2) { this.pointing = false; this.pointTarget = null; }
     }
   }
 
   updateHeadLook(time) {
     if (!this.headBone) return;
-
     if (this.lookAtTarget) {
       const target = new THREE.Vector3().copy(this.lookAtTarget);
       this.headBone.lookAt(target);
@@ -390,24 +354,16 @@ export class AvatarManager {
   }
 
   updateBlink(time) {
-    if (!this.headMesh) return;
-
+    if (!this.avatar) return;
     if (time - this.lastBlink > 3 + Math.random() * 4) {
       this.lastBlink = time;
       this.blinking = true;
       this.blinkStart = time;
     }
-
     if (this.blinking) {
       const t = (time - this.blinkStart) * 10;
-      const amount = t < 1 ? t : t < 2 ? 2 - t : 0;
-
-      if (this.avatar.getObjectByName('avatar-left-eye')) {
-        this.setEyeScale(1 - amount);
-      } else {
-        headModelBuilder.setBlink(this.headMesh, amount);
-      }
-
+      const s = t < 1 ? 1 - t : t < 2 ? t - 1 : 1;
+      this.setEyeScale(s);
       if (t >= 2) this.blinking = false;
     }
   }
@@ -419,13 +375,8 @@ export class AvatarManager {
     if (rightEye) rightEye.scale.y = scale;
   }
 
-  setLookAt(target) {
-    this.lookAtTarget = target;
-  }
-
-  clearLookAt() {
-    this.lookAtTarget = null;
-  }
+  setLookAt(target) { this.lookAtTarget = target; }
+  clearLookAt() { this.lookAtTarget = null; }
 
   getPosition() {
     return this.avatar ? this.avatar.position.clone() : new THREE.Vector3();
@@ -443,6 +394,5 @@ export class AvatarManager {
         }
       });
     }
-    headModelBuilder.dispose();
   }
 }
