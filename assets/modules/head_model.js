@@ -60,7 +60,7 @@ export class HeadModelBuilder {
       const jawNarrow = 1 - 0.08 * Math.exp(-Math.pow((y / radius + 0.6) / 0.3, 2));
       nx *= jawNarrow;
 
-      pos.setXYZ(i, nx, ny, nz);
+      pos.setXYZ(v.idx, nx, ny, nz);
     }
 
     this.storeVertices(pos);
