@@ -243,6 +243,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const app = new Portfolio3D();
   app.init().catch(err => {
     console.error('[Portfolio3D] Failed to initialize:', err);
-    document.getElementById('loader').innerHTML = '<div class="loader-text">Failed to load. Please refresh.</div>';
+    document.getElementById('loader').innerHTML = `<div class="loader-text" style="color:#f472b6">Error: ${err.message || err}</div>`;
   });
 });
